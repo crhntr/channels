@@ -34,8 +34,16 @@ func TestCountReceived(t *testing.T) {
 		t.Run("it counts "+strconv.Itoa(i), func(t *testing.T) {
 			n := channels.CountReceived(channels.SendEach(make([]int, i)))
 			if n != i {
-				t.Fatal()
+				t.Fail()
 			}
 		})
 	}
+	t.Run("closed", func(t *testing.T) {
+		c := make(chan int)
+		close(c)
+		n := channels.CountReceived(c)
+		if n != 0 {
+			t.Fail()
+		}
+	})
 }
