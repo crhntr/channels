@@ -1,6 +1,7 @@
 package channels_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/crhntr/channels"
@@ -29,8 +30,12 @@ func TestSendEach(t *testing.T) {
 }
 
 func TestCountReceived(t *testing.T) {
-	n := channels.CountReceived(channels.SendEach[int]([]int{1, 2, 3}))
-	if n != 3 {
-		t.Fatal()
+	for i := 0; i < 3; i++ {
+		t.Run("it counts "+strconv.Itoa(i), func(t *testing.T) {
+			n := channels.CountReceived(channels.SendEach(make([]int, i)))
+			if n != i {
+				t.Fatal()
+			}
+		})
 	}
 }
