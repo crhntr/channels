@@ -79,7 +79,8 @@ func defaultNumberOfWorkers(n uint16) uint16 {
 }
 
 // Workers creates a channel that receives the output of f applied to each element of in.
-func Workers[T1, T2 any](n uint16, in <-chan T1, f func(T1) T2) <-chan T2 {
+// When f returns false, the result is not sent on the channel.
+func Workers[T1, T2 any](n uint16, in <-chan T1, f func(T1) (T2, bool)) <-chan T2 {
 	n = defaultNumberOfWorkers(n)
 	c := make(chan T2)
 	wg := sync.WaitGroup{}
@@ -94,12 +95,16 @@ func Workers[T1, T2 any](n uint16, in <-chan T1, f func(T1) T2) <-chan T2 {
 	return FanIn(workerChannels...)
 }
 
-func worker[T1, T2 any](in <-chan T1, f func(T1) T2) <-chan T2 {
+func worker[T1, T2 any](in <-chan T1, f func(T1) (T2, bool)) <-chan T2 {
 	c := make(chan T2)
 	go func() {
 		defer close(c)
 		for v := range in {
-			c <- f(v)
+			r, ok := f(v)
+			if !ok {
+				continue
+			}
+			c <- r
 		}
 	}()
 	return c
@@ -123,8 +128,8 @@ func ApplyElements[T1, T2 any](n uint16, in []T1, f func(T1) T2) []T2 {
 
 func workerMapWithStatus[T1, T2 any](n uint16, in []T1, f func(T1) T2, result func(int, int, T1, T2)) {
 	inputs := sendSliceElementsWithIndex(in)
-	outputs := Workers(n, inputs, func(i valueIndex[T1]) valueIndex[T2] {
-		return valueIndex[T2]{value: f(i.value), index: i.index}
+	outputs := Workers(n, inputs, func(i valueIndex[T1]) (valueIndex[T2], bool) {
+		return valueIndex[T2]{value: f(i.value), index: i.index}, true
 	})
 	for o := range outputs {
 		result(o.index, len(in), in[o.index], o.value)
