@@ -120,13 +120,13 @@ func ApplyElements[T1, T2 any](n uint16, in []T1, f func(T1) T2) []T2 {
 		n = uint16(len(in))
 	}
 	result := make([]T2, len(in))
-	workerMapWithStatus(n, in, f, func(index int, _ int, _ T1, output T2) {
+	workerMapWithIndexes(n, in, f, func(index int, _ int, _ T1, output T2) {
 		result[index] = output
 	})
 	return result
 }
 
-func workerMapWithStatus[T1, T2 any](n uint16, in []T1, f func(T1) T2, result func(int, int, T1, T2)) {
+func workerMapWithIndexes[T1, T2 any](n uint16, in []T1, f func(T1) T2, result func(int, int, T1, T2)) {
 	inputs := sendSliceElementsWithIndex(in)
 	outputs := Workers(n, inputs, func(i valueIndex[T1]) (valueIndex[T2], bool) {
 		return valueIndex[T2]{value: f(i.value), index: i.index}, true
@@ -184,7 +184,7 @@ func sendSliceElementsWithIndex[T any](in []T) <-chan valueIndex[T] {
 	go func() {
 		defer close(c)
 		for i, v := range in {
-			c <- valueIndex[T]{v, i}
+			c <- valueIndex[T]{index: i, value: v}
 		}
 	}()
 	return c
