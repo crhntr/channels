@@ -111,8 +111,8 @@ func worker[T1, T2 any](in <-chan T1, f func(T1) (T2, bool)) <-chan T2 {
 }
 
 type valueIndex[T any] struct {
-	value T
 	index int
+	value T
 }
 
 func ApplyElements[T1, T2 any](n uint16, in []T1, f func(T1) T2) []T2 {
