@@ -5,13 +5,16 @@ name: Go
 on:
     push:
         branches: ["main"]
-        paths-ignore: &paths-ignore
+        paths-ignore:
             - README.md
             - LICENSE
             - .gitignore
     pull_request:
         branches: ["main"]
-        paths-ignore: *paths-ignore
+        paths-ignore:
+            - README.md
+            - LICENSE
+            - .gitignore
 jobs:
     build:
         runs-on: ubuntu-latest
