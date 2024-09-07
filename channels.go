@@ -12,7 +12,7 @@ func Drain[T any](c <-chan T) {
 	}
 }
 
-func SendElements[T any](in []T) <-chan T {
+func Send[T any](in []T) <-chan T {
 	c := make(chan T)
 	go func() {
 		defer close(c)
@@ -23,7 +23,7 @@ func SendElements[T any](in []T) <-chan T {
 	return c
 }
 
-func ReceiveElements[T any](c <-chan T) []T {
+func Receive[T any](c <-chan T) []T {
 	var list []T
 	for v := range c {
 		list = append(list, v)
@@ -31,7 +31,7 @@ func ReceiveElements[T any](c <-chan T) []T {
 	return slices.Clip(list)
 }
 
-func CountReceived[T any](in <-chan T) int {
+func Count[T any](in <-chan T) int {
 	count := 0
 	for range in {
 		count++
@@ -115,7 +115,7 @@ type valueIndex[T any] struct {
 	value T
 }
 
-func ApplyElements[T1, T2 any](n uint16, in []T1, f func(T1) T2) []T2 {
+func Apply[T1, T2 any](n uint16, in []T1, f func(T1) T2) []T2 {
 	if int(n) > len(in) {
 		n = uint16(len(in))
 	}
