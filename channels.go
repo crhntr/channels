@@ -76,6 +76,19 @@ func FanOut[T any](n uint16, in <-chan T) []<-chan T {
 	return receiveOnly(channels)
 }
 
+func Filter[T any](in <-chan T, keep func(T) bool) <-chan T {
+	c := make(chan T)
+	go func() {
+		defer close(c)
+		for v := range in {
+			if keep(v) {
+				c <- v
+			}
+		}
+	}()
+	return c
+}
+
 func defaultNumberOfWorkers(n uint16) uint16 {
 	if n == 0 {
 		return uint16(runtime.NumCPU())
