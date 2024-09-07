@@ -25,17 +25,17 @@ func TestDrain_receive(t *testing.T) {
 
 func TestSendElements(t *testing.T) {
 	t.Run("it does not block", func(t *testing.T) {
-		channels.Drain(channels.Send([]int{1, 2, 3}))
+		channels.Drain(channels.Send(slices.Values([]int{1, 2, 3})))
 	})
 	t.Run("it handles an empty list", func(t *testing.T) {
-		channels.Drain(channels.Send[int](nil))
+		channels.Drain(channels.Send(slices.Values([]int(nil))))
 	})
 }
 
 func TestCountReceived(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		t.Run("it counts "+strconv.Itoa(i), func(t *testing.T) {
-			n := channels.Count(channels.Send(make([]int, i)))
+			n := channels.Count(channels.Send(slices.Values(make([]int, i))))
 			if n != i {
 				t.Fail()
 			}
@@ -53,8 +53,8 @@ func TestCountReceived(t *testing.T) {
 
 func TestFanIn(t *testing.T) {
 	t.Run("2 channels", func(t *testing.T) {
-		evens := channels.Send([]int{2, 4, 6})
-		odds := channels.Send([]int{1, 3, 5})
+		evens := channels.Send(slices.Values([]int{2, 4, 6}))
+		odds := channels.Send(slices.Values([]int{1, 3, 5}))
 
 		n := channels.Count(channels.FanIn(evens, odds))
 		if n != 6 {
@@ -69,7 +69,7 @@ func TestFanIn(t *testing.T) {
 	})
 
 	t.Run("2 channels first closed", func(t *testing.T) {
-		odds := channels.Send([]int{1, 3, 5})
+		odds := channels.Send(slices.Values([]int{1, 3, 5}))
 		closed := make(chan int)
 		close(closed)
 
@@ -80,7 +80,7 @@ func TestFanIn(t *testing.T) {
 	})
 
 	t.Run("2 channels second closed", func(t *testing.T) {
-		odds := channels.Send([]int{1, 3, 5})
+		odds := channels.Send(slices.Values([]int{1, 3, 5}))
 		closed := make(chan int)
 		close(closed)
 
@@ -106,7 +106,7 @@ func TestFanIn(t *testing.T) {
 func TestFanOut(t *testing.T) {
 	t.Run("it consistently counts", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
-			zeros := channels.Send(make([]int, 10))
+			zeros := channels.Send(slices.Values(make([]int, 10)))
 			n := channels.Count(channels.FanIn(channels.FanOut(5, zeros)...))
 			if exp := 50; n != exp {
 				t.Error("got: ", n, " exp: ", exp)
@@ -118,9 +118,9 @@ func TestFanOut(t *testing.T) {
 		for i := range in {
 			in[i] = i
 		}
-		zeros := channels.Send(in)
+		zeros := channels.Send(slices.Values(in))
 		const numberOfChannels = 2
-		out := channels.Receive(channels.FanIn(channels.FanOut(numberOfChannels, zeros)...))
+		out := slices.Collect(channels.Receive(channels.FanIn(channels.FanOut(numberOfChannels, zeros)...)))
 		for _, v := range in {
 			if n := countEqual(out, v); n != numberOfChannels {
 				t.Errorf("expected %d of value %d got %d", numberOfChannels, v, n)

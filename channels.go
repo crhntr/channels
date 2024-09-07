@@ -12,23 +12,28 @@ func Drain[T any](c <-chan T) {
 	}
 }
 
-func Send[T any](in []T) <-chan T {
+type Iter[T any] func(func(T) bool)
+
+func Send[T any](iter Iter[T]) <-chan T {
 	c := make(chan T)
 	go func() {
 		defer close(c)
-		for _, v := range in {
-			c <- v
-		}
+		iter(func(val T) bool {
+			c <- val
+			return true
+		})
 	}()
 	return c
 }
 
-func Receive[T any](c <-chan T) []T {
-	var list []T
-	for v := range c {
-		list = append(list, v)
+func Receive[T any](c <-chan T) Iter[T] {
+	return func(yield func(T) bool) {
+		for v := range c {
+			if !yield(v) {
+				break
+			}
+		}
 	}
-	return slices.Clip(list)
 }
 
 func Count[T any](in <-chan T) int {
