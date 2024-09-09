@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"iter"
 	"reflect"
 	"runtime"
 	"slices"
@@ -12,9 +13,7 @@ func Drain[T any](c <-chan T) {
 	}
 }
 
-type Iter[T any] func(func(T) bool)
-
-func Send[T any](iter Iter[T]) <-chan T {
+func Send[T any](iter iter.Seq[T]) <-chan T {
 	c := make(chan T)
 	go func() {
 		defer close(c)
@@ -26,7 +25,7 @@ func Send[T any](iter Iter[T]) <-chan T {
 	return c
 }
 
-func Receive[T any](c <-chan T) Iter[T] {
+func Receive[T any](c <-chan T) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		for v := range c {
 			if !yield(v) {
