@@ -88,6 +88,51 @@ func Filter[T any](in <-chan T, keep func(T) bool) <-chan T {
 	return c
 }
 
+func Map[T1, T2 any](in <-chan T1, f func(T1) T2) <-chan T2 {
+	c := make(chan T2)
+	go func() {
+		defer close(c)
+		for v := range in {
+			c <- f(v)
+		}
+	}()
+	return c
+}
+
+func Take[T any](in <-chan T, n int) <-chan T {
+	c := make(chan T)
+	go func() {
+		defer close(c)
+		for range n {
+			v, ok := <-in
+			if !ok {
+				return
+			}
+			c <- v
+		}
+	}()
+	return c
+}
+
+func Batch[T any](in <-chan T, size int) <-chan []T {
+	c := make(chan []T)
+	go func() {
+		defer close(c)
+		batch := make([]T, 0, size)
+		for v := range in {
+			batch = append(batch, v)
+			if len(batch) == size {
+				c <- batch
+				batch = make([]T, 0, size)
+			}
+		}
+		if len(batch) > 0 {
+			c <- batch
+		}
+	}()
+	return c
+}
+
 func defaultNumberOfWorkers(n uint16) uint16 {
 	if n == 0 {
 		return uint16(runtime.NumCPU())
