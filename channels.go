@@ -133,6 +133,37 @@ func Batch[T any](in <-chan T, size int) <-chan []T {
 	return c
 }
 
+// Recent returns a channel that forwards values from in. When the reader
+// is slower than the writer, it buffers up to n recent values, dropping
+// the oldest when full. Remaining buffered values are sent when in closes.
+func Recent[T any](n int, in <-chan T) <-chan T {
+	out := make(chan T)
+	go func() {
+		defer close(out)
+		buf := make([]T, 0, n)
+		for in != nil || len(buf) > 0 {
+			var sendVal T
+			if len(buf) > 0 {
+				sendVal = buf[0]
+			}
+			select {
+			case v, ok := <-in:
+				if !ok {
+					in = nil
+					continue
+				}
+				if len(buf) == n {
+					buf = slices.Delete(buf, 0, 1)
+				}
+				buf = append(buf, v)
+			case out <- sendVal:
+				buf = slices.Delete(buf, 0, 1)
+			}
+		}
+	}()
+	return out
+}
+
 func defaultNumberOfWorkers(n uint16) uint16 {
 	if n == 0 {
 		return uint16(runtime.NumCPU())

@@ -702,6 +702,67 @@ func ExampleReceive_reduce() {
 	// Output: 15
 }
 
+func TestRecent(t *testing.T) {
+	t.Run("keeps last n values when reader is slow", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			in := make(chan int)
+			out := channels.Recent(2, in)
+
+			// send all values without reading
+			for i := 1; i <= 5; i++ {
+				in <- i
+				synctest.Wait()
+			}
+			close(in)
+			synctest.Wait()
+
+			got := slices.Collect(channels.Receive(out))
+			if exp := []int{4, 5}; !slices.Equal(exp, got) {
+				t.Error("got: ", got, " exp: ", exp)
+			}
+		})
+	})
+
+	t.Run("drops oldest when reader is slow", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			in := make(chan int)
+			out := channels.Recent(2, in)
+
+			// send 5 values without reading — only last 2 should survive
+			for i := 1; i <= 5; i++ {
+				in <- i
+				synctest.Wait()
+			}
+			close(in)
+			synctest.Wait()
+
+			got := slices.Collect(channels.Receive(out))
+			if exp := []int{4, 5}; !slices.Equal(exp, got) {
+				t.Error("got: ", got, " exp: ", exp)
+			}
+		})
+	})
+
+	t.Run("forwards values continuously before input closes", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			in := make(chan int)
+			out := channels.Recent(3, in)
+
+			in <- 1
+			synctest.Wait()
+
+			// should be readable now, not waiting for in to close
+			got := <-out
+
+			if got != 1 {
+				t.Error("got: ", got, " exp: ", 1)
+			}
+
+			close(in)
+		})
+	})
+}
+
 func countEqual[T comparable](slice []T, val T) int {
 	n := 0
 	for _, v := range slice {
