@@ -7,189 +7,7 @@ import (
 	"reflect"
 	"runtime"
 	"slices"
-	"sync"
-	"sync/atomic"
 )
-
-type listener[T any] struct {
-	ch     chan T
-	filter func(T) bool
-	closed bool
-}
-
-// Broadcast distributes values from one input channel to multiple subscribers.
-type Broadcast[T any] struct {
-	mu        sync.Mutex
-	listeners []*listener[T]
-	closed    bool
-	done      chan struct{}
-	latest    T
-	hasLatest bool
-	drops     atomic.Int64
-}
-
-// NewBroadcast starts a goroutine that reads from in and delivers values
-// to all active subscribers. When in closes, all subscriber channels are closed.
-func NewBroadcast[T any](in <-chan T) *Broadcast[T] {
-	b := &Broadcast[T]{
-		done: make(chan struct{}),
-	}
-	go b.run(in)
-	return b
-}
-
-func (b *Broadcast[T]) run(in <-chan T) {
-	for {
-		select {
-		case v, ok := <-in:
-			if !ok {
-				b.Close()
-				return
-			}
-			b.send(v)
-		case <-b.done:
-			return
-		}
-	}
-}
-
-func (b *Broadcast[T]) send(v T) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.latest = v
-	b.hasLatest = true
-
-	for _, l := range b.listeners {
-		if l.closed {
-			continue
-		}
-		if l.filter != nil && !l.filter(v) {
-			continue
-		}
-		if _, evicted := Slide(l.ch, v); evicted {
-			b.drops.Add(1)
-		}
-	}
-}
-
-// Subscribe creates a buffered subscription of size n.
-// Returns the channel and a cancel func to unsubscribe.
-// If the Broadcast is already closed, the returned channel is closed.
-func (b *Broadcast[T]) Subscribe(n int) (<-chan T, func()) {
-	ch := make(chan T, n)
-	l := &listener[T]{ch: ch}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.closed {
-		close(ch)
-		return ch, func() {}
-	}
-	b.listeners = append(b.listeners, l)
-	return ch, b.cancelFunc(l)
-}
-
-// SubscribeFilter creates a buffered subscription of size n
-// that only receives values where filter returns true.
-func (b *Broadcast[T]) SubscribeFilter(n int, filter func(T) bool) (<-chan T, func()) {
-	ch := make(chan T, n)
-	l := &listener[T]{ch: ch, filter: filter}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.closed {
-		close(ch)
-		return ch, func() {}
-	}
-	b.listeners = append(b.listeners, l)
-	return ch, b.cancelFunc(l)
-}
-
-// Latest returns the most recent value delivered by the Broadcast.
-// The bool is false if no value has been broadcast yet.
-func (b *Broadcast[T]) Latest() (T, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.latest, b.hasLatest
-}
-
-// DropCount returns the total number of values evicted from subscriber buffers.
-func (b *Broadcast[T]) DropCount() int64 {
-	return b.drops.Load()
-}
-
-// ResetDropCount returns the drop count but also resets it to 0
-func (b *Broadcast[T]) ResetDropCount() int64 {
-	return b.drops.Swap(0)
-}
-
-func (b *Broadcast[T]) cancelFunc(l *listener[T]) func() {
-	return func() {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		if l.closed {
-			return
-		}
-		l.closed = true
-		for i, ll := range b.listeners {
-			if ll == l {
-				b.listeners = append(b.listeners[:i], b.listeners[i+1:]...)
-				break
-			}
-		}
-		close(l.ch)
-	}
-}
-
-// Close stops the Broadcast and closes all subscriber channels.
-// It is safe to call multiple times.
-func (b *Broadcast[T]) Close() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		return
-	}
-	b.closed = true
-	for _, l := range b.listeners {
-		if !l.closed {
-			l.closed = true
-			close(l.ch)
-		}
-	}
-	b.listeners = nil
-	close(b.done)
-}
-
-// Slide writes v to a channel with sliding-window semantics.
-// On an unbuffered channel, it blocks until the value is read.
-// On a buffered channel that is full, the oldest value is evicted.
-// It returns the evicted value and true if eviction occurred.
-func Slide[T any](ch chan T, v T) (T, bool) {
-	if cap(ch) == 0 {
-		ch <- v
-		var zero T
-		return zero, false
-	}
-	var (
-		old     T
-		evicted bool
-	)
-	select {
-	case ch <- v:
-	default:
-		select {
-		case old, evicted = <-ch:
-		default:
-		}
-		select {
-		case ch <- v:
-		default:
-		}
-	}
-	return old, evicted
-}
 
 // Drain receives and discards all values. Blocks until c closes.
 func Drain[T any](c <-chan T) {
@@ -522,4 +340,33 @@ func sendSliceElementsWithIndex[T any](in []T) <-chan valueIndex[T] {
 		}
 	}()
 	return c
+}
+
+// Slide writes v to a channel with sliding-window semantics.
+// On an unbuffered channel, it blocks until the value is read.
+// On a buffered channel that is full, the oldest value is evicted.
+// It returns the evicted value and true if eviction occurred.
+func Slide[T any](ch chan T, v T) (T, bool) {
+	if cap(ch) == 0 {
+		ch <- v
+		var zero T
+		return zero, false
+	}
+	var (
+		old     T
+		evicted bool
+	)
+	select {
+	case ch <- v:
+	default:
+		select {
+		case old, evicted = <-ch:
+		default:
+		}
+		select {
+		case ch <- v:
+		default:
+		}
+	}
+	return old, evicted
 }
