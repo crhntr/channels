@@ -11,7 +11,7 @@ import (
 
 // Coordinator distributes values from one input channel to multiple subscribers.
 type Coordinator[T any] struct {
-	in        chan T
+	in        <-chan T
 	sub       chan subRequest[T]
 	unsub     chan *subscriber[T]
 	closed    chan struct{}
@@ -40,7 +40,7 @@ type subscriber[T any] struct {
 // New starts a coordinator goroutine that reads from in and delivers
 // values to all active subscribers. When in closes, all subscriber channels
 // are closed.
-func New[T any](in chan T) *Coordinator[T] {
+func New[T any](in <-chan T) *Coordinator[T] {
 	b := &Coordinator[T]{
 		in:     in,
 		sub:    make(chan subRequest[T]),
@@ -102,10 +102,6 @@ func (bc *Coordinator[T]) run() {
 			return
 		}
 	}
-}
-
-func (bc *Coordinator[T]) Send(data T) {
-	bc.in <- data
 }
 
 // SubscribeAll creates a subscription that delivers every value.
