@@ -104,9 +104,7 @@ func (bc *Coordinator[T]) run() {
 	}
 }
 
-func (bc *Coordinator[T]) Send(data T) {
-	bc.in <- data
-}
+func (bc *Coordinator[T]) C() chan T { return bc.in }
 
 // SubscribeAll creates a subscription that delivers every value.
 // When the buffer is full, the send blocks until the subscriber reads.
