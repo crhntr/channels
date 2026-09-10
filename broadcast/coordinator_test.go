@@ -416,6 +416,7 @@ func TestBroadcast_TapIter_break_cancels_subscription(t *testing.T) {
 			for i := 1; i <= 5; i++ {
 				in <- i
 			}
+			close(in)
 		}()
 
 		var got []int
@@ -428,8 +429,6 @@ func TestBroadcast_TapIter_break_cancels_subscription(t *testing.T) {
 		if exp := []int{1, 2, 3}; !slices.Equal(exp, got) {
 			t.Error("got: ", got, " exp: ", exp)
 		}
-
-		close(in)
 	})
 }
 
